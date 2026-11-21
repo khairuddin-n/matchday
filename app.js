@@ -1,6 +1,6 @@
 import * as E from './espn.js';
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const ICS_URL = 'https://khairuddin-n.github.io/matchday/barca.ics';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -358,7 +358,7 @@ function detailBody(s) {
       const t = l.side === 'home' ? m.home : m.away;
       const st = l.players.filter(p => p.starter).sort((a, b) => a.place - b.place);
       const bench = l.players.filter(p => !p.starter).sort((a, b) => (b.inn - a.inn) || (Number(a.num) - Number(b.num)));
-      const row = p => `<div class="lp"><span class="numdot">${esc(p.num)}</span><span class="grow">${esc(p.name)}</span><small class="pos">${esc(p.pos)}</small>${p.out ? `<span class="subk out" title="Diganti">${icon('i-sub')}</span>` : p.inn ? `<span class="subk in" title="Masuk">${icon('i-sub')}</span>` : ''}</div>`;
+      const row = p => `<div class="lp"><span class="numdot">${esc(p.num)}</span><span class="grow">${esc(p.name)}</span>${p.starter ? `<small class="pos">${esc(p.pos)}</small>` : ''}${p.out ? `<span class="subk out" title="Diganti">${icon('i-sub')}</span>` : p.inn ? `<span class="subk in" title="Masuk">${icon('i-sub')}</span>` : ''}</div>`;
       return `<section class="card">
         <div class="card-h">${crest(t, 24)}<h2>${esc(t.name)}</h2><span class="fm num">${esc(l.formation)}</span></div>
         ${st.map(row).join('')}
