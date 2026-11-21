@@ -1,0 +1,34 @@
+name: Perbarui kalender
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ics
+  cancel-in-progress: false
+
+jobs:
+  ics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python tools/build_ics.py barca.ics
+      - name: Commit kalau berubah
+        run: |
+          # DTSTAMP selalu baru; bandingkan tanpa baris itu supaya tidak commit tiap jalan
+          if git diff --quiet -I '^DTSTAMP' -- barca.ics && git ls-files --error-unmatch barca.ics >/dev/null 2>&1; then
+            echo "Tidak ada perubahan"; exit 0
+          fi
+          git config user.name "matchday-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add barca.ics
+          git commit -m "Perbarui barca.ics"
+          git push

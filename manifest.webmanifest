@@ -1,0 +1,21 @@
+{
+  "name": "Matchday",
+  "short_name": "Matchday",
+  "description": "Jadwal, skor live, line-up, statistik dan klasemen FC Barcelona.",
+  "lang": "id",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F3F2F5",
+  "theme_color": "#8E0039",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Jadwal", "url": "./#/jadwal", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Klasemen", "url": "./#/klasemen", "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
+}
