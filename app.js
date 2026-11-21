@@ -1,6 +1,6 @@
 import * as E from './espn.js';
 
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const ICS_URL = 'https://khairuddin-n.github.io/matchday/barca.ics';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -83,7 +83,16 @@ function top(html) { $('top').innerHTML = html; }
 function view(html) { $('view').innerHTML = html; }
 const errBox = msg => `<div class="empty"><p>${esc(msg || 'Data belum bisa diambil.')}</p><button class="btn" data-act="retry">Coba lagi</button></div>`;
 const loading = () => `<div class="loading"><span class="spin"></span></div>`;
-const brand = sub => `<div class="brand"><span class="mark">${icon('i-ball')}</span><span class="wm">matchday</span>${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+// ---------- tema: Sistem → Terang → Gelap ----------
+const THEMES = { system: ['i-auto', 'Tema ikut HP'], light: ['i-sun', 'Tema terang'], dark: ['i-moon', 'Tema gelap'] };
+const getTheme = () => { try { const t = localStorage.getItem('md_theme'); return THEMES[t] ? t : 'system'; } catch { return 'system'; } };
+function applyTheme(t) {
+  if (t === 'system') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('md_theme', t); } catch { /* abaikan */ }
+}
+const themeBtn = () => { const [ic, label] = THEMES[getTheme()]; return `<button class="theme-btn" data-act="theme" aria-label="${label}" title="${label}">${icon(ic)}</button>`; };
+
+const brand = sub => `<div class="brand"><span class="mark">${icon('i-ball')}</span><span class="wm">matchday</span>${sub ? `<span class="sub">${sub}</span>` : ''}${themeBtn()}</div>`;
 
 // ---------- Beranda ----------
 function heroHTML(m) {
@@ -404,6 +413,13 @@ document.addEventListener('click', e => {
   }
   const act = t.dataset.act;
   if (act === 'retry') { render({ fresh: true }); }
+  if (act === 'theme') {
+    const order = ['system', 'light', 'dark'];
+    const next = order[(order.indexOf(getTheme()) + 1) % 3];
+    applyTheme(next);
+    t.outerHTML = themeBtn();
+    snack(THEMES[next][1]);
+  }
   if (act === 'back') { e.preventDefault(); if (history.length > 1 && sessionStorage.getItem('md_nav')) history.back(); else location.replace('#/'); }
   if (act === 'copy-ics') {
     navigator.clipboard.writeText(ICS_URL).then(() => snack('Link kalender disalin'), () => snack(ICS_URL));

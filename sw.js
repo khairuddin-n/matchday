@@ -1,6 +1,6 @@
 // Halaman: network-first (supaya HP tidak tertahan di versi lama). Aset: cache-first per versi.
 // Data ESPN tidak lewat cache SW (app.js menyimpan data terakhir sendiri). Logo klub di-cache.
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const CACHE = 'md-' + VERSION;
 const IMG = 'md-img';
 const SHELL = ['./', 'index.html', 'app.css?v=' + VERSION, 'app.js?v=' + VERSION, 'espn.js', 'manifest.webmanifest', 'icons/logo.svg', 'icons/icon-192.png'];
