@@ -1,6 +1,6 @@
 import * as E from './espn.js';
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const ICS_URL = 'https://khairuddin-n.github.io/matchday/barca.ics';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -121,6 +121,11 @@ function heroHTML(m) {
   </a>`;
 }
 
+// kompetisi resmi yang sudah dimainkan Barça musim ini (tanpa uji coba)
+const SHORT = { 'esp.1': 'La Liga', 'uefa.champions': 'UCL', 'esp.copa_del_rey': 'Copa', 'esp.super_cup': 'Supercopa' };
+const playedComps = () => Object.keys(SHORT).filter(l => (M || []).some(m => m.league === l && m.state === 'post'));
+const compsLabel = ls => (ls.length ? ls.map(l => SHORT[l]).join(' + ') : 'La Liga');
+
 const ordinal = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
 
 // skor akhir + pencetak gol (s = summary, boleh null saat belum termuat)
@@ -216,23 +221,29 @@ async function renderHome(seq) {
     if (i < 0) { el.remove(); return; }
     const from = Math.max(0, Math.min(i - 2, rows.length - 5));
     const win = rows.slice(from, from + 5);
-    const me = rows[i], other = i === 0 ? rows[1] : rows[0];
-    const diff = other ? me.pts - other.pts : 0;
-    const gap = !other ? '' : i === 0 ? `${diff} pts clear at the top` : `${-diff} pts behind ${esc(other.name)}`;
     const cl = rowsOf(ucl).find(r => r.id === E.TEAM);
-    el.innerHTML = `<a class="card-h" href="#/klasemen"><h2>La Liga <small>${gap}</small></h2>${icon('i-right', 'chev')}</a>
+    el.innerHTML = `<a class="card-h" href="#/klasemen"><h2>La Liga</h2>${icon('i-right', 'chev')}</a>
       <div class="mini">${win.map(r => `<div class="tr${r.id === E.TEAM ? ' me' : ''}"><span class="c-r num">${r.rank}</span><span class="c-t">${crest(r, 20)}<b>${esc(r.name)}</b></span><span class="c-n num">${esc(r.played)}</span><span class="c-n num">${esc(r.gd)}</span><span class="c-p num">${r.pts}</span></div>`).join('')}</div>
       ${cl ? `<a class="sub-line" href="#/klasemen/uefa.champions">Champions League <b>${ordinal(cl.rank)}</b> of ${rowsOf(ucl).length} · ${cl.pts} pts${icon('i-right', 'chev')}</a>` : ''}`;
   }).catch(() => { const el = $('table'); el && el.remove(); });
 
-  E.squad().then(sq => {
+  // pencetak gol Barça: jumlah semua kompetisi resmi yang sudah dimainkan musim ini
+  const comps = playedComps();
+  Promise.all([E.squad(false, comps.length ? comps : ['esp.1']), E.leaders('esp.1').catch(() => null)]).then(([sq, lead]) => {
     if (seq !== renderSeq) return;
     const el = $('scorers'); if (!el) return;
     const top5 = sq.filter(p => p.goals > 0 || p.assists > 0).sort((a, b) => b.goals - a.goals || b.assists - a.assists).slice(0, 5);
     if (!top5.length) { el.remove(); return; }
-    el.innerHTML = `<a class="card-h" href="#/skuad"><h2>Top scorers <small>La Liga</small></h2>${icon('i-right', 'chev')}</a>
+    const ligaRank = p => { const i = lead ? lead.goals.findIndex(x => x.id === p.id || x.name === p.name) : -1; return i < 0 ? 0 : i + 1; };
+    const sub = p => {
+      const parts = comps.length > 1 ? comps.filter(l => p.by[l] && p.by[l].goals).map(l => `${p.by[l].goals} ${SHORT[l]}`) : [];
+      return parts.join(' · ');
+    };
+    // peringkat di daftar top skor La Liga (semua klub), hanya 5 besar
+    const tag = p => { const r = ligaRank(p); return r && r <= 5 ? `<span class="tag" title="Rank among all La Liga scorers">#${r} in La Liga</span>` : ''; };
+    el.innerHTML = `<a class="card-h" href="#/skuad"><h2>Barça scorers <small>${esc(compsLabel(comps))}</small></h2>${icon('i-right', 'chev')}</a>
       <div class="sq th"><span></span><span class="grow"></span><span class="c">Goals</span><span class="c">Ast</span></div>
-      ${top5.map(p => `<div class="sq"><span class="numdot">${esc(p.num)}</span><span class="grow"><b>${esc(p.name)}</b></span><span class="c num strong">${p.goals}</span><span class="c num${p.assists ? '' : ' dim'}">${p.assists}</span></div>`).join('')}`;
+      ${top5.map(p => `<div class="sq"><span class="numdot">${esc(p.num)}</span><span class="grow"><b class="nm">${esc(p.name)}${tag(p)}</b>${sub(p) ? `<small>${esc(sub(p))}</small>` : ''}</span><span class="c num strong">${p.goals}</span><span class="c num${p.assists ? '' : ' dim'}">${p.assists}</span></div>`).join('')}`;
   }).catch(() => { const el = $('scorers'); el && el.remove(); });
 
   // skor live: perbarui tiap 30 detik
@@ -331,32 +342,64 @@ async function renderTable(league, seq, opts) {
   const tables = groups.map(table).join('');
   const legend = zones.length ? `<div class="legend">${zones.map(z => `<span><i style="background:${esc(z.color)}"></i>${esc(z.label)}</span>`).join('')}</div>` : '';
   const scorers = lead && lead.goals.length ? `<section class="card">
-    <div class="card-h"><h2>Top scorers</h2></div>
+    <div class="card-h"><h2>${esc(E.COMPS[league])} top scorers</h2></div>
     <div class="rows">${lead.goals.slice(0, 10).map((p, i) => `<div class="row${p.teamId === E.TEAM ? ' me' : ''}">
       <span class="rk num">${i + 1}</span><span class="grow"><b>${esc(p.name)}</b><small>${esc(p.team)} · ${esc(p.apps)} apps · ${esc(p.assists || 0)} assists</small></span><b class="num big">${p.value}</b></div>`).join('')}</div>
   </section>` : '';
   view(head + tables + legend + scorers);
 }
 
-// ---------- Skuad ----------
-const POS = [['G', 'Goalkeepers'], ['D', 'Defenders'], ['M', 'Midfielders'], ['F', 'Forwards']];
+// ---------- Skuad: satu tabel, bisa di-sort dan difilter ----------
+const POS_F = [['all', 'All'], ['G', 'GK'], ['D', 'DEF'], ['M', 'MID'], ['F', 'FWD']];
+const POS_NAME = { G: 'GK', D: 'DEF', M: 'MID', F: 'FWD' };
+const SQ_COLS = [['age', 'Age'], ['apps', 'Apps'], ['goals', 'Goals'], ['assists', 'Ast']];
+let SQ = null;
+const sqState = (() => {
+  const d = { comp: 'all', pos: 'all', sort: 'goals', dir: -1 };
+  try { return Object.assign(d, JSON.parse(localStorage.getItem('md_sq')) || {}); } catch { return d; }
+})();
+const saveSq = () => { try { localStorage.setItem('md_sq', JSON.stringify(sqState)); } catch { /* abaikan */ } };
+
 async function renderSquad(seq, opts) {
   top(`<h1>Squad</h1>`);
   view(loading());
-  let sq;
-  try { sq = await E.squad(opts.fresh); } catch (e) { if (seq === renderSeq) view(errBox(e.message)); return; }
+  if (!M) await loadMatches();
+  const comps = playedComps();
+  try { SQ = { comps, list: await E.squad(opts.fresh, comps.length ? comps : ['esp.1']) }; }
+  catch (e) { if (seq === renderSeq) view(errBox(e.message)); return; }
   if (seq !== renderSeq) return;
-  const rest = sq.filter(p => !POS.some(([k]) => k === p.pos));
-  view(`<p class="note">La Liga stats this season</p>` + POS.map(([k, label]) => {
-    const ps = sq.filter(p => p.pos === k).concat(k === 'F' ? rest : []).sort((a, b) => (Number(a.num) || 99) - (Number(b.num) || 99));
-    if (!ps.length) return '';
-    return `<h3 class="month">${label}</h3><section class="card">
-      <div class="sq th"><span></span><span class="grow"></span><span class="c">Apps</span><span class="c">Goals</span><span class="c">Ast</span></div>
-      ${ps.map(p => `<div class="sq"><span class="numdot">${esc(p.num || '–')}</span>
-        <span class="grow"><b>${esc(p.name)}</b><small>${esc(p.nat)}${p.age ? ' · age ' + p.age : ''}${p.injured ? ' · <em>injured</em>' : ''}</small></span>
-        <span class="c num${p.apps ? '' : ' dim'}">${p.apps}</span><span class="c num${p.goals ? ' strong' : ' dim'}">${p.goals}</span><span class="c num${p.assists ? '' : ' dim'}">${p.assists}</span></div>`).join('')}
-    </section>`;
-  }).join(''));
+  if (sqState.comp !== 'all' && !comps.includes(sqState.comp)) sqState.comp = 'all';
+  view(`<div id="sqf"></div><section class="card sqt" id="sqt"></section>`);
+  drawSquad();
+}
+
+function drawSquad() {
+  if (!SQ) return;
+  const { comps, list } = SQ;
+  const st = sqState;
+  const compTabs = [['all', 'All comps']].concat(comps.map(l => [l, SHORT[l]]));
+  $('sqf').innerHTML = (comps.length > 1 ? seg(compTabs, st.comp, 'data-sqcomp') : '') +
+    `<div class="chips">${POS_F.map(([k, l]) => `<button class="chip${st.pos === k ? ' on' : ''}" data-sqpos="${k}">${l}</button>`).join('')}</div>`;
+
+  const val = p => {
+    const s = st.comp === 'all' ? p : (p.by[st.comp] || { apps: 0, goals: 0, assists: 0 });
+    return { apps: s.apps, goals: s.goals, assists: s.assists, age: Number(p.age) || 0 };
+  };
+  const rows = list.filter(p => st.pos === 'all' || p.pos === st.pos || (st.pos === 'F' && !POS_NAME[p.pos]))
+    .map(p => ({ p, v: val(p) }));
+  const k = st.sort, dir = st.dir;
+  rows.sort((a, b) => {
+    if (k === 'name') return dir * a.p.name.localeCompare(b.p.name);
+    if (k === 'num') return dir * ((Number(a.p.num) || 999) - (Number(b.p.num) || 999));
+    return dir * (a.v[k] - b.v[k]) || (b.v.goals - a.v.goals) || (b.v.apps - a.v.apps) || a.p.name.localeCompare(b.p.name);
+  });
+  const th = (key, label, cls) => `<button class="${cls}${k === key ? ' on' : ''}" data-sqsort="${key}">${label}${k === key ? (dir < 0 ? ' ↓' : ' ↑') : ''}</button>`;
+  $('sqt').innerHTML = `<div class="sq th">${th('name', 'Player', 'grow')}${SQ_COLS.map(([c, l]) => th(c, l, 'c')).join('')}</div>
+    ${rows.map(({ p, v }) => `<div class="sq">
+      <span class="grow"><b class="ell">${esc(p.name)}</b><small class="ell">${p.num ? '#' + esc(p.num) + ' · ' : ''}${POS_NAME[p.pos] || esc(p.pos)} · ${esc(p.nat)}${p.injured ? ' · <em>injured</em>' : ''}</small></span>
+      <span class="c num dim2">${v.age || '–'}</span>
+      <span class="c num${v.apps ? '' : ' dim'}">${v.apps}</span><span class="c num${v.goals ? ' strong' : ' dim'}">${v.goals}</span><span class="c num${v.assists ? '' : ' dim'}">${v.assists}</span></div>`).join('')
+      || `<div class="empty"><p>No players.</p></div>`}`;
 }
 
 // ---------- Detail laga ----------
@@ -471,10 +514,18 @@ function detailBody(s) {
 
 // ---------- event ----------
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-tab],[data-league],[data-dtab],[data-act]');
+  const t = e.target.closest('[data-tab],[data-league],[data-dtab],[data-act],[data-sqcomp],[data-sqpos],[data-sqsort]');
   if (!t) return;
   if (t.dataset.tab) { location.replace('#/jadwal' + (t.dataset.tab === 'hasil' ? '/hasil' : '')); return; }
   if (t.dataset.league) { location.replace('#/klasemen/' + t.dataset.league); return; }
+  if (t.dataset.sqcomp) { sqState.comp = t.dataset.sqcomp; saveSq(); drawSquad(); return; }
+  if (t.dataset.sqpos) { sqState.pos = t.dataset.sqpos; saveSq(); drawSquad(); return; }
+  if (t.dataset.sqsort) {
+    const key = t.dataset.sqsort;
+    if (sqState.sort === key) sqState.dir = -sqState.dir;
+    else { sqState.sort = key; sqState.dir = key === 'name' || key === 'num' ? 1 : -1; }
+    saveSq(); drawSquad(); return;
+  }
   if (t.dataset.dtab) {
     detailTab = t.dataset.dtab;
     document.querySelectorAll('[data-dtab]').forEach(b => { const on = b.dataset.dtab === detailTab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });

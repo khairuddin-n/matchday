@@ -205,7 +205,7 @@ export async function leaders(league, fresh) {
     const st = Object.fromEntries((a.statistics || []).map(s => [s.name, s.displayValue]));
     const team = a.team && typeof a.team === 'object' ? a.team : {};
     return {
-      name: a.displayName || '', team: team.abbreviation || team.displayName || '', teamId: String(team.id || ''),
+      id: String(a.id || ''), name: a.displayName || '', team: team.abbreviation || team.displayName || '', teamId: String(team.id || ''),
       value: Number(l.value) || 0, apps: st.appearances || '', goals: st.totalGoals || '', assists: st.goalAssists || ''
     };
   });
@@ -213,15 +213,29 @@ export async function leaders(league, fresh) {
 }
 
 // ---------- skuad ----------
-export async function squad(fresh) {
-  const d = await get(`${BASE}/esp.1/teams/${TEAM}/roster`, fresh ? 0 : 6 * 60 * 60 * 1000);
-  return (d.athletes || []).map(a => {
+// leagues: kompetisi yang statistiknya dijumlahkan. Hanya kirim kompetisi yang sudah dimainkan
+// musim ini: roster kompetisi yang belum mulai (mis. Copa) berisi statistik musim lalu.
+// Daftar pemain selalu dari roster La Liga (skuad terkini).
+export async function squad(fresh, leagues = ['esp.1']) {
+  const age = fresh ? 0 : 6 * 60 * 60 * 1000;
+  const base = await get(`${BASE}/esp.1/teams/${TEAM}/roster`, age);
+  const extra = await Promise.all(leagues.filter(l => l !== 'esp.1').map(l =>
+    get(`${BASE}/${l}/teams/${TEAM}/roster`, age).then(d => [l, d]).catch(() => [l, null])));
+  const statsOf = a => {
     const cats = {};
     (((a.statistics || {}).splits || {}).categories || []).forEach(c => (c.stats || []).forEach(s => { cats[s.name] = s.displayValue; }));
+    return { apps: Number(cats.appearances) || 0, goals: Number(cats.totalGoals) || 0, assists: Number(cats.goalAssists) || 0 };
+  };
+  const per = {};   // id pemain → { liga: stats }
+  if (leagues.includes('esp.1')) (base.athletes || []).forEach(a => { (per[a.id] = per[a.id] || {})['esp.1'] = statsOf(a); });
+  extra.forEach(([l, d]) => d && (d.athletes || []).forEach(a => { (per[a.id] = per[a.id] || {})[l] = statsOf(a); }));
+  return (base.athletes || []).map(a => {
+    const by = per[a.id] || {};
+    const sum = k => Object.values(by).reduce((t, s) => t + s[k], 0);
     return {
-      name: a.displayName || a.fullName || '', num: a.jersey || '', age: a.age || '',
+      id: String(a.id), name: a.displayName || a.fullName || '', num: a.jersey || '', age: a.age || '',
       pos: (a.position && a.position.abbreviation) || '', nat: (a.flag && a.flag.alt) || a.citizenship || '',
-      apps: Number(cats.appearances) || 0, goals: Number(cats.totalGoals) || 0, assists: Number(cats.goalAssists) || 0,
+      apps: sum('apps'), goals: sum('goals'), assists: sum('assists'), by,
       injured: (a.injuries || []).length > 0
     };
   });
