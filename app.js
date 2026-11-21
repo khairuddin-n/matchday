@@ -1,6 +1,6 @@
 import * as E from './espn.js';
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const ICS_URL = 'https://khairuddin-n.github.io/matchday/barca.ics';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -121,6 +121,23 @@ function heroHTML(m) {
   </a>`;
 }
 
+const ordinal = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 - 20) % 10] || ['th', 'st', 'nd', 'rd'][n % 100] || 'th');
+
+// skor akhir + pencetak gol (s = summary, boleh null saat belum termuat)
+function resultBlock(m, s) {
+  const goals = s ? s.events.filter(e => /goal|pen|og/.test(e.kind) && e.kind !== 'penmiss' && !e.shootout) : [];
+  const gl = side => goals.filter(g => g.side === side).map(g => `<li>${esc(g.who)} ${esc(g.min)}${g.kind === 'pen' ? ' (p)' : g.kind === 'og' ? ' (og)' : ''}</li>`).join('');
+  return `<div class="rb">
+    <div class="rb-row">
+      <span class="rb-t">${crest(m.home, 36)}<b>${esc(m.home.name)}</b></span>
+      <span class="rb-s num">${m.home.score ?? ''}<i>–</i>${m.away.score ?? ''}</span>
+      <span class="rb-t r"><b>${esc(m.away.name)}</b>${crest(m.away, 36)}</span>
+    </div>
+    <div class="rb-meta">${esc(m.comp)} · ${esc(day(m.date))}${resChip(m.result)}</div>
+    ${goals.length ? `<div class="rb-goals"><ul>${gl('home')}</ul><ul class="r">${gl('away')}</ul></div>` : ''}
+  </div>`;
+}
+
 async function renderHome(seq) {
   top(brand('FC Barcelona'));
   if (!M) { view(loadErr ? errBox(loadErr) : loading()); return; }
@@ -130,39 +147,92 @@ async function renderHome(seq) {
   const past = M.filter(m => m.state === 'post').sort((a, b) => b.date - a.date);
   const last = past[0];
   const form = past.slice(0, 5).reverse();   // lama → baru, terbaru paling kanan
+  const upNext = M.filter(m => m.state === 'pre' && m.date > now && (!next || m.id !== next.id)).slice(0, 3);
+  const skel = (id, title) => `<section class="card" id="${id}"><div class="card-h"><h2>${title}</h2></div><div class="sk"></div></section>`;
+  const tableLeague = 'esp.1';
+  const standingsFor = l => (/^(esp\.1|uefa\.champions)$/.test(l) ? E.standings(l).catch(() => null) : Promise.resolve(null));
+  const rowsOf = g => (g ? g.flatMap(x => x.rows) : []);
+
+  // rekap musim (semua kompetisi) dihitung dari hasil yang sudah ada
+  const season = past.reduce((a, m) => {
+    const us = ours(m).score, them = opp(m).score;
+    if (us == null || them == null) return a;
+    a.p++; a[m.result]++; a.gf += us; a.ga += them; if (them === 0) a.cs++;
+    return a;
+  }, { p: 0, W: 0, D: 0, L: 0, gf: 0, ga: 0, cs: 0 });
 
   view(`
     ${next ? heroHTML(next) : `<div class="hero empty-hero"><p>No upcoming matches yet.</p></div>`}
-    ${last ? `<section class="card">
-      <a class="card-h" href="#/jadwal/hasil"><h2>Form</h2><span class="form">${form.map(m => resChip(m.result)).join('')}</span>${icon('i-right', 'chev')}</a>
-      ${matchRow(last, true)}
+    ${next && next.state === 'pre' ? skel('preview', 'Match preview') : ''}
+    ${upNext.length ? `<section class="card"><a class="card-h" href="#/jadwal"><h2>Next up</h2>${icon('i-right', 'chev')}</a>${upNext.map(m => matchRow(m)).join('')}</section>` : ''}
+    ${last ? `<section class="card" id="last"><a class="card-h" href="#/laga/${last.league}/${last.id}"><h2>Last result</h2>${icon('i-right', 'chev')}</a>${resultBlock(last, null)}</section>` : ''}
+    ${season.p ? `<section class="card">
+      <a class="card-h" href="#/jadwal/hasil"><h2>Season so far <small>All comps</small></h2>${icon('i-right', 'chev')}</a>
+      <div class="kpis">
+        <div><b class="num">${season.p}</b><small>Played</small></div>
+        <div><b class="num">${season.W}-${season.D}-${season.L}</b><small>W-D-L</small></div>
+        <div><b class="num">${season.gf}:${season.ga}</b><small>Goals</small></div>
+        <div><b class="num">${season.cs}</b><small>Clean sheets</small></div>
+      </div>
+      <div class="form-row"><small>Last 5</small><span class="form">${form.map(m => resChip(m.result)).join('')}</span></div>
     </section>` : ''}
-    <section class="card" id="pos"><div class="card-h"><h2>La Liga</h2></div><div class="sk"></div></section>
-    <section class="card" id="scorers"><div class="card-h"><h2>Top scorers</h2></div><div class="sk"></div></section>
+    ${skel('table', 'La Liga')}
+    ${skel('scorers', 'Top scorers')}
   `);
   tickCountdown();
 
-  // posisi liga + pencetak gol (tidak menghambat hero)
-  E.standings('esp.1').then(g => {
+  // preview laga berikutnya: posisi + form kedua tim
+  if (next && next.state === 'pre') {
+    Promise.all([E.summary(next.league, next.id).catch(() => null), standingsFor(next.league)]).then(([s, g]) => {
+      if (seq !== renderSeq) return;
+      const el = $('preview'); if (!el) return;
+      const rows = rowsOf(g);
+      const line = side => {
+        const t = next[side];
+        const st = rows.find(r => r.id === t.id);
+        const f = s && s.form.find(x => x.side === side);
+        const chips = f ? f.games.slice().reverse().map(x => resChip(x.res)).join('') : '';
+        return `<div class="row">${crest(t, 30)}<span class="grow"><b>${esc(t.name)}</b><small>${st ? `${ordinal(st.rank)} in ${esc(next.comp)} · ${st.pts} pts` : esc(next.comp)}</small></span><span class="form">${chips}</span></div>`;
+      };
+      if (!rows.length && !(s && s.form.length)) { el.remove(); return; }
+      el.innerHTML = `<a class="card-h" href="#/laga/${next.league}/${next.id}"><h2>Match preview</h2>${icon('i-right', 'chev')}</a><div class="rows">${line('home')}${line('away')}</div>`;
+    });
+  }
+
+  // hasil terakhir: tambah pencetak gol
+  if (last) {
+    E.summary(last.league, last.id).then(s => {
+      if (seq !== renderSeq) return;
+      const el = $('last'); if (el) el.querySelector('.rb').outerHTML = resultBlock(last, s);
+    }).catch(() => {});
+  }
+
+  // mini klasemen La Liga + posisi di Liga Champions
+  Promise.all([E.standings(tableLeague), standingsFor('uefa.champions')]).then(([g, ucl]) => {
     if (seq !== renderSeq) return;
+    const el = $('table'); if (!el) return;
     const rows = (g[0] || { rows: [] }).rows;
     const i = rows.findIndex(r => r.id === E.TEAM);
-    const el = $('pos'); if (!el || i < 0) { el && el.remove(); return; }
+    if (i < 0) { el.remove(); return; }
+    const from = Math.max(0, Math.min(i - 2, rows.length - 5));
+    const win = rows.slice(from, from + 5);
     const me = rows[i], other = i === 0 ? rows[1] : rows[0];
     const diff = other ? me.pts - other.pts : 0;
-    const gap = !other ? '' : i === 0 ? `${diff} pts clear of ${esc(other.name)}` : `${-diff} pts behind ${esc(other.name)}`;
-    el.outerHTML = `<a class="card pos" href="#/klasemen">
-      <span class="rank num">${me.rank}</span>
-      <span class="pos-t"><b>${me.pts} pts <small>· ${me.played} played</small></b><small>${gap}</small></span>${icon('i-right', 'chev')}</a>`;
-  }).catch(() => { const el = $('pos'); el && el.remove(); });
+    const gap = !other ? '' : i === 0 ? `${diff} pts clear at the top` : `${-diff} pts behind ${esc(other.name)}`;
+    const cl = rowsOf(ucl).find(r => r.id === E.TEAM);
+    el.innerHTML = `<a class="card-h" href="#/klasemen"><h2>La Liga <small>${gap}</small></h2>${icon('i-right', 'chev')}</a>
+      <div class="mini">${win.map(r => `<div class="tr${r.id === E.TEAM ? ' me' : ''}"><span class="c-r num">${r.rank}</span><span class="c-t">${crest(r, 20)}<b>${esc(r.name)}</b></span><span class="c-n num">${esc(r.played)}</span><span class="c-n num">${esc(r.gd)}</span><span class="c-p num">${r.pts}</span></div>`).join('')}</div>
+      ${cl ? `<a class="sub-line" href="#/klasemen/uefa.champions">Champions League <b>${ordinal(cl.rank)}</b> of ${rowsOf(ucl).length} · ${cl.pts} pts${icon('i-right', 'chev')}</a>` : ''}`;
+  }).catch(() => { const el = $('table'); el && el.remove(); });
 
   E.squad().then(sq => {
     if (seq !== renderSeq) return;
     const el = $('scorers'); if (!el) return;
-    const top3 = sq.filter(p => p.goals > 0).sort((a, b) => b.goals - a.goals || b.assists - a.assists).slice(0, 3);
-    if (!top3.length) { el.remove(); return; }
+    const top5 = sq.filter(p => p.goals > 0 || p.assists > 0).sort((a, b) => b.goals - a.goals || b.assists - a.assists).slice(0, 5);
+    if (!top5.length) { el.remove(); return; }
     el.innerHTML = `<a class="card-h" href="#/skuad"><h2>Top scorers <small>La Liga</small></h2>${icon('i-right', 'chev')}</a>
-      <div class="rows">${top3.map(p => `<div class="row"><span class="numdot">${esc(p.num)}</span><span class="grow">${esc(p.name)}</span><b class="num">${p.goals}</b></div>`).join('')}</div>`;
+      <div class="sq th"><span></span><span class="grow"></span><span class="c">Goals</span><span class="c">Ast</span></div>
+      ${top5.map(p => `<div class="sq"><span class="numdot">${esc(p.num)}</span><span class="grow"><b>${esc(p.name)}</b></span><span class="c num strong">${p.goals}</span><span class="c num${p.assists ? '' : ' dim'}">${p.assists}</span></div>`).join('')}`;
   }).catch(() => { const el = $('scorers'); el && el.remove(); });
 
   // skor live: perbarui tiap 30 detik
