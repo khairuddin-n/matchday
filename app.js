@@ -1,31 +1,31 @@
 import * as E from './espn.js';
 
-const VERSION = '1.0.2';
+const VERSION = '1.1.0';
 const ICS_URL = 'https://khairuddin-n.github.io/matchday/barca.ics';
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const icon = (id, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#${id}"/></svg>`;
 
 // ---------- format waktu (zona waktu HP; di Indonesia tampil "WIB") ----------
-const fDay = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
-const fDayLong = new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long' });
-const fTime = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
+const fDay = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const fDayLong = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+const fTime = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
 const fZone = new Intl.DateTimeFormat('id-ID', { timeZoneName: 'short' });
-const fMonth = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' });
-const fDnum = new Intl.DateTimeFormat('id-ID', { day: 'numeric' });
-const fWd = new Intl.DateTimeFormat('id-ID', { weekday: 'short' });
+const fMonth = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' });
+const fDnum = new Intl.DateTimeFormat('en-GB', { day: 'numeric' });
+const fWd = new Intl.DateTimeFormat('en-GB', { weekday: 'short' });
 const zone = (() => { const p = fZone.formatToParts(new Date()).find(x => x.type === 'timeZoneName'); return p ? p.value : ''; })();
 const day = t => fDay.format(t);
-const time = t => fTime.format(t).replace(':', '.');
+const time = t => fTime.format(t);
 
 function untilText(ms) {
   const m = Math.max(0, Math.round(ms / 60000));
   const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
-  if (d >= 1) return `${d} hari${h ? ' ' + h + ' jam' : ''}`;
-  if (h >= 1) return `${h} jam${mm ? ' ' + mm + ' mnt' : ''}`;
-  return `${mm} mnt`;
+  if (d >= 1) return `${d}d${h ? ' ' + h + 'h' : ''}`;
+  if (h >= 1) return `${h}h${mm ? ' ' + mm + 'm' : ''}`;
+  return `${mm}m`;
 }
-const RES = { W: ['M', 'Menang'], D: ['S', 'Seri'], L: ['K', 'Kalah'] };
+const RES = { W: ['W', 'Win'], D: ['D', 'Draw'], L: ['L', 'Loss'] };
 const resChip = (r, big) => r ? `<span class="res r-${r}${big ? ' big' : ''}" title="${RES[r][1]}">${RES[r][0]}</span>` : '';
 const crest = (t, size = 28) => t.logo
   ? `<img class="crest" src="${esc(t.logo)}" width="${size}" height="${size}" alt="" loading="lazy" decoding="async">`
@@ -33,7 +33,7 @@ const crest = (t, size = 28) => t.logo
 const opp = m => (m.us === 'home' ? m.away : m.home);
 const ours = m => (m.us === 'home' ? m.home : m.away);
 const scoreText = m => `${m.home.score ?? '–'}<i>–</i>${m.away.score ?? '–'}`;
-const pensText = m => (m.home.pens != null && m.away.pens != null && (m.home.pens || m.away.pens) ? `Adu penalti ${m.home.pens}–${m.away.pens}` : '');
+const pensText = m => (m.home.pens != null && m.away.pens != null && (m.home.pens || m.away.pens) ? `Penalties ${m.home.pens}–${m.away.pens}` : '');
 
 function snack(msg) {
   const s = $('snack'); s.textContent = msg; s.classList.add('show');
@@ -81,10 +81,10 @@ async function render(opts = {}) {
 
 function top(html) { $('top').innerHTML = html; }
 function view(html) { $('view').innerHTML = html; }
-const errBox = msg => `<div class="empty"><p>${esc(msg || 'Data belum bisa diambil.')}</p><button class="btn" data-act="retry">Coba lagi</button></div>`;
+const errBox = msg => `<div class="empty"><p>${esc(msg || 'Could not load data.')}</p><button class="btn" data-act="retry">Try again</button></div>`;
 const loading = () => `<div class="loading"><span class="spin"></span></div>`;
 // ---------- tema: Sistem → Terang → Gelap ----------
-const THEMES = { system: ['i-auto', 'Tema ikut HP'], light: ['i-sun', 'Tema terang'], dark: ['i-moon', 'Tema gelap'] };
+const THEMES = { system: ['i-auto', 'Theme: system'], light: ['i-sun', 'Theme: light'], dark: ['i-moon', 'Theme: dark'] };
 const getTheme = () => { try { const t = localStorage.getItem('md_theme'); return THEMES[t] ? t : 'system'; } catch { return 'system'; } };
 function applyTheme(t) {
   if (t === 'system') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
@@ -99,16 +99,16 @@ function heroHTML(m) {
   const s = live[m.id] ? live[m.id].match : m;
   const lv = isLive(s);
   const done = s.state === 'post';
-  const where = m.us === 'home' ? 'Kandang' : 'Tandang';
+  const where = m.us === 'home' ? 'Home' : 'Away';
   let mid;
   if (lv || done) {
     mid = `<div class="hs num">${scoreText(s)}</div>
-      <div class="hst">${lv ? `<span class="live"><b></b>LIVE</span> ${esc(s.clock || s.detail)}` : 'Selesai'}</div>`;
+      <div class="hst">${lv ? `<span class="live"><b></b>LIVE</span> ${esc(s.clock || s.detail)}` : 'Full time'}</div>`;
   } else {
     mid = `<div class="ht num">${m.tbd ? '––.––' : time(m.date)}</div><div class="hst">${esc(day(m.date))}${m.tbd ? '' : ' · ' + zone}</div>`;
   }
   const goals = live[m.id] ? live[m.id].events.filter(e => /goal|pen|og/.test(e.kind) && e.kind !== 'penmiss' && !e.shootout) : [];
-  const gl = sideName => goals.filter(g => g.side === sideName).map(g => `<li>${esc(g.who)} ${esc(g.min)}${g.kind === 'pen' ? ' (p)' : g.kind === 'og' ? ' (bd)' : ''}</li>`).join('');
+  const gl = sideName => goals.filter(g => g.side === sideName).map(g => `<li>${esc(g.who)} ${esc(g.min)}${g.kind === 'pen' ? ' (p)' : g.kind === 'og' ? ' (og)' : ''}</li>`).join('');
   return `<a class="hero" href="#/laga/${m.league}/${m.id}">
     <div class="h-meta"><span>${esc(m.comp)}</span><span>${where}</span></div>
     <div class="h-row">
@@ -117,7 +117,7 @@ function heroHTML(m) {
       <div class="h-team">${crest(s.away, 56)}<b>${esc(s.away.name)}</b></div>
     </div>
     ${goals.length ? `<div class="h-goals"><ul>${gl('home')}</ul><ul class="r">${gl('away')}</ul></div>` : ''}
-    ${!lv && !done ? `<div class="h-foot"><span class="cd" data-kick="${m.date}">${m.tbd ? 'Jam kick-off belum pasti' : 'Kick-off ' + untilText(m.date - Date.now()) + ' lagi'}</span></div>` : ''}
+    ${!lv && !done ? `<div class="h-foot"><span class="cd" data-kick="${m.date}">${m.tbd ? 'Kick-off time TBC' : 'Kick-off in ' + untilText(m.date - Date.now())}</span></div>` : ''}
   </a>`;
 }
 
@@ -132,13 +132,13 @@ async function renderHome(seq) {
   const form = past.slice(0, 5).reverse();   // lama → baru, terbaru paling kanan
 
   view(`
-    ${next ? heroHTML(next) : `<div class="hero empty-hero"><p>Belum ada jadwal berikutnya.</p></div>`}
+    ${next ? heroHTML(next) : `<div class="hero empty-hero"><p>No upcoming matches yet.</p></div>`}
     ${last ? `<section class="card">
       <a class="card-h" href="#/jadwal/hasil"><h2>Form</h2><span class="form">${form.map(m => resChip(m.result)).join('')}</span>${icon('i-right', 'chev')}</a>
       ${matchRow(last, true)}
     </section>` : ''}
     <section class="card" id="pos"><div class="card-h"><h2>La Liga</h2></div><div class="sk"></div></section>
-    <section class="card" id="scorers"><div class="card-h"><h2>Pencetak gol</h2></div><div class="sk"></div></section>
+    <section class="card" id="scorers"><div class="card-h"><h2>Top scorers</h2></div><div class="sk"></div></section>
   `);
   tickCountdown();
 
@@ -150,10 +150,10 @@ async function renderHome(seq) {
     const el = $('pos'); if (!el || i < 0) { el && el.remove(); return; }
     const me = rows[i], other = i === 0 ? rows[1] : rows[0];
     const diff = other ? me.pts - other.pts : 0;
-    const gap = !other ? '' : i === 0 ? `unggul ${diff} poin dari ${esc(other.name)}` : `${-diff} poin di belakang ${esc(other.name)}`;
+    const gap = !other ? '' : i === 0 ? `${diff} pts clear of ${esc(other.name)}` : `${-diff} pts behind ${esc(other.name)}`;
     el.outerHTML = `<a class="card pos" href="#/klasemen">
       <span class="rank num">${me.rank}</span>
-      <span class="pos-t"><b>${me.pts} poin <small>· ${me.played} laga</small></b><small>${gap}</small></span>${icon('i-right', 'chev')}</a>`;
+      <span class="pos-t"><b>${me.pts} pts <small>· ${me.played} played</small></b><small>${gap}</small></span>${icon('i-right', 'chev')}</a>`;
   }).catch(() => { const el = $('pos'); el && el.remove(); });
 
   E.squad().then(sq => {
@@ -161,7 +161,7 @@ async function renderHome(seq) {
     const el = $('scorers'); if (!el) return;
     const top3 = sq.filter(p => p.goals > 0).sort((a, b) => b.goals - a.goals || b.assists - a.assists).slice(0, 3);
     if (!top3.length) { el.remove(); return; }
-    el.innerHTML = `<a class="card-h" href="#/skuad"><h2>Pencetak gol <small>La Liga</small></h2>${icon('i-right', 'chev')}</a>
+    el.innerHTML = `<a class="card-h" href="#/skuad"><h2>Top scorers <small>La Liga</small></h2>${icon('i-right', 'chev')}</a>
       <div class="rows">${top3.map(p => `<div class="row"><span class="numdot">${esc(p.num)}</span><span class="grow">${esc(p.name)}</span><b class="num">${p.goals}</b></div>`).join('')}</div>`;
   }).catch(() => { const el = $('scorers'); el && el.remove(); });
 
@@ -182,8 +182,8 @@ async function renderHome(seq) {
 function tickCountdown() {
   document.querySelectorAll('.cd[data-kick]').forEach(el => {
     const k = Number(el.dataset.kick);
-    if (/belum pasti/.test(el.textContent)) return;
-    el.textContent = k > Date.now() ? 'Kick-off ' + untilText(k - Date.now()) + ' lagi' : 'Sebentar lagi kick-off';
+    if (/TBC/.test(el.textContent)) return;
+    el.textContent = k > Date.now() ? 'Kick-off in ' + untilText(k - Date.now()) : 'Kick-off soon';
   });
 }
 setInterval(tickCountdown, 30000);
@@ -198,7 +198,7 @@ function matchRow(m, compact) {
   return `<a class="mrow${compact ? ' compact' : ''}" href="#/laga/${m.league}/${m.id}">
     <span class="dt"><b class="num">${fDnum.format(m.date)}</b><small>${esc(fWd.format(m.date))}</small></span>
     ${crest(o, 30)}
-    <span class="grow"><b>${esc(o.name)}</b><small>${esc(m.comp)} · ${m.us === 'home' ? 'Kandang' : 'Tandang'}</small></span>
+    <span class="grow"><b>${esc(o.name)}</b><small>${esc(m.comp)} · ${m.us === 'home' ? 'Home' : 'Away'}</small></span>
     <span class="rt">${right}</span>
   </a>`;
 }
@@ -209,7 +209,7 @@ function seg(items, cur, attr) {
 }
 
 function renderSchedule(tab) {
-  top(`<h1>Jadwal</h1>`);
+  top(`<h1>Fixtures</h1>`);
   if (!M) { view(errBox(loadErr)); return; }
   const now = Date.now();
   const list = tab === 'hasil'
@@ -223,20 +223,20 @@ function renderSchedule(tab) {
     g.items.push(m);
   });
   const cal = `<div class="cal">
-    <a class="btn ghost" href="https://calendar.google.com/calendar/r?cid=${encodeURIComponent(ICS_URL.replace(/^https:/, 'webcal:'))}" target="_blank" rel="noopener">${icon('i-plus-cal')}Tambah ke Google Calendar</a>
-    <button class="icon-btn" data-act="copy-ics" aria-label="Salin link kalender">${icon('i-copy')}</button>
+    <a class="btn ghost" href="https://calendar.google.com/calendar/r?cid=${encodeURIComponent(ICS_URL.replace(/^https:/, 'webcal:'))}" target="_blank" rel="noopener">${icon('i-plus-cal')}Add to Google Calendar</a>
+    <button class="icon-btn" data-act="copy-ics" aria-label="Copy calendar link">${icon('i-copy')}</button>
   </div>`;
-  view(`${seg([['akan', 'Akan datang'], ['hasil', 'Hasil']], tab, 'data-tab')}
+  view(`${seg([['akan', 'Upcoming'], ['hasil', 'Results']], tab, 'data-tab')}
     ${groups.length ? groups.map(g => `<h3 class="month">${esc(g.k)}</h3><section class="card list">${g.items.map(m => matchRow(m)).join('')}</section>`).join('')
-      : `<div class="empty"><p>${tab === 'hasil' ? 'Belum ada hasil musim ini.' : 'Belum ada jadwal.'}</p></div>`}
+      : `<div class="empty"><p>${tab === 'hasil' ? 'No results this season yet.' : 'No upcoming matches.'}</p></div>`}
     ${tab === 'akan' ? cal : ''}`);
 }
 
 // ---------- Klasemen ----------
 async function renderTable(league, seq, opts) {
   if (!E.COMPS[league] || !/^(esp\.1|uefa\.champions)$/.test(league)) league = 'esp.1';
-  top(`<h1>Klasemen</h1>`);
-  const head = seg([['esp.1', 'La Liga'], ['uefa.champions', 'Liga Champions']], league, 'data-league');
+  top(`<h1>Standings</h1>`);
+  const head = seg([['esp.1', 'La Liga'], ['uefa.champions', 'Champions League']], league, 'data-league');
   view(head + loading());
   let groups, lead;
   try { [groups, lead] = await Promise.all([E.standings(league, opts.fresh), E.leaders(league, opts.fresh).catch(() => null)]); }
@@ -246,7 +246,7 @@ async function renderTable(league, seq, opts) {
   const zones = [];
   const table = g => `<section class="card tbl">
     ${groups.length > 1 ? `<h3 class="tbl-name">${esc(g.name)}</h3>` : ''}
-    <div class="tr th"><span class="c-r">#</span><span class="c-t">Tim</span><span class="c-n">M</span><span class="c-n hide-s">M-S-K</span><span class="c-n">SG</span><span class="c-p">Poin</span></div>
+    <div class="tr th"><span class="c-r">#</span><span class="c-t">Team</span><span class="c-n">P</span><span class="c-n hide-s">W-D-L</span><span class="c-n">GD</span><span class="c-p">Pts</span></div>
     ${g.rows.map(r => {
       if (r.zone && !zones.find(z => z.label === r.zone.label)) zones.push(r.zone);
       return `<div class="tr${r.id === E.TEAM ? ' me' : ''}" ${r.zone ? `style="--zone:${esc(r.zone.color)}"` : ''}>
@@ -261,29 +261,29 @@ async function renderTable(league, seq, opts) {
   const tables = groups.map(table).join('');
   const legend = zones.length ? `<div class="legend">${zones.map(z => `<span><i style="background:${esc(z.color)}"></i>${esc(z.label)}</span>`).join('')}</div>` : '';
   const scorers = lead && lead.goals.length ? `<section class="card">
-    <div class="card-h"><h2>Top skor</h2></div>
+    <div class="card-h"><h2>Top scorers</h2></div>
     <div class="rows">${lead.goals.slice(0, 10).map((p, i) => `<div class="row${p.teamId === E.TEAM ? ' me' : ''}">
-      <span class="rk num">${i + 1}</span><span class="grow"><b>${esc(p.name)}</b><small>${esc(p.team)} · ${esc(p.apps)} laga · ${esc(p.assists || 0)} assist</small></span><b class="num big">${p.value}</b></div>`).join('')}</div>
+      <span class="rk num">${i + 1}</span><span class="grow"><b>${esc(p.name)}</b><small>${esc(p.team)} · ${esc(p.apps)} apps · ${esc(p.assists || 0)} assists</small></span><b class="num big">${p.value}</b></div>`).join('')}</div>
   </section>` : '';
   view(head + tables + legend + scorers);
 }
 
 // ---------- Skuad ----------
-const POS = [['G', 'Kiper'], ['D', 'Belakang'], ['M', 'Tengah'], ['F', 'Depan']];
+const POS = [['G', 'Goalkeepers'], ['D', 'Defenders'], ['M', 'Midfielders'], ['F', 'Forwards']];
 async function renderSquad(seq, opts) {
-  top(`<h1>Skuad</h1>`);
+  top(`<h1>Squad</h1>`);
   view(loading());
   let sq;
   try { sq = await E.squad(opts.fresh); } catch (e) { if (seq === renderSeq) view(errBox(e.message)); return; }
   if (seq !== renderSeq) return;
   const rest = sq.filter(p => !POS.some(([k]) => k === p.pos));
-  view(`<p class="note">Statistik La Liga musim ini</p>` + POS.map(([k, label]) => {
+  view(`<p class="note">La Liga stats this season</p>` + POS.map(([k, label]) => {
     const ps = sq.filter(p => p.pos === k).concat(k === 'F' ? rest : []).sort((a, b) => (Number(a.num) || 99) - (Number(b.num) || 99));
     if (!ps.length) return '';
     return `<h3 class="month">${label}</h3><section class="card">
-      <div class="sq th"><span></span><span class="grow"></span><span class="c">Main</span><span class="c">Gol</span><span class="c">Assist</span></div>
+      <div class="sq th"><span></span><span class="grow"></span><span class="c">Apps</span><span class="c">Goals</span><span class="c">Ast</span></div>
       ${ps.map(p => `<div class="sq"><span class="numdot">${esc(p.num || '–')}</span>
-        <span class="grow"><b>${esc(p.name)}</b><small>${esc(p.nat)}${p.age ? ' · ' + p.age + ' th' : ''}${p.injured ? ' · <em>cedera</em>' : ''}</small></span>
+        <span class="grow"><b>${esc(p.name)}</b><small>${esc(p.nat)}${p.age ? ' · age ' + p.age : ''}${p.injured ? ' · <em>injured</em>' : ''}</small></span>
         <span class="c num${p.apps ? '' : ' dim'}">${p.apps}</span><span class="c num${p.goals ? ' strong' : ' dim'}">${p.goals}</span><span class="c num${p.assists ? '' : ' dim'}">${p.assists}</span></div>`).join('')}
     </section>`;
   }).join(''));
@@ -291,19 +291,19 @@ async function renderSquad(seq, opts) {
 
 // ---------- Detail laga ----------
 const STATS = [
-  ['possessionPct', 'Penguasaan bola', v => v + '%'], ['totalShots', 'Tembakan'], ['shotsOnTarget', 'Tepat sasaran'],
-  ['wonCorners', 'Sepak pojok'], ['foulsCommitted', 'Pelanggaran'], ['offsides', 'Offside'],
-  ['yellowCards', 'Kartu kuning'], ['redCards', 'Kartu merah'], ['saves', 'Penyelamatan'],
-  ['totalPasses', 'Umpan'], ['passPct', 'Akurasi umpan', v => Math.round(Number(v) * 100) + '%']
+  ['possessionPct', 'Possession', v => v + '%'], ['totalShots', 'Shots'], ['shotsOnTarget', 'On target'],
+  ['wonCorners', 'Corners'], ['foulsCommitted', 'Fouls'], ['offsides', 'Offsides'],
+  ['yellowCards', 'Yellow cards'], ['redCards', 'Red cards'], ['saves', 'Saves'],
+  ['totalPasses', 'Passes'], ['passPct', 'Pass accuracy', v => Math.round(Number(v) * 100) + '%']
 ];
 const KIND = {
-  goal: ['i-ball', 'Gol'], pen: ['i-ball', 'Penalti'], og: ['i-ball', 'Bunuh diri'], penmiss: ['i-ball', 'Penalti gagal'],
-  yellow: ['', 'Kartu kuning'], red: ['', 'Kartu merah'], sub: ['i-sub', 'Pergantian'], var: ['i-whistle', 'VAR']
+  goal: ['i-ball', 'Goal'], pen: ['i-ball', 'Penalty'], og: ['i-ball', 'Own goal'], penmiss: ['i-ball', 'Penalty missed'],
+  yellow: ['', 'Yellow card'], red: ['', 'Red card'], sub: ['i-sub', 'Substitution'], var: ['i-whistle', 'VAR']
 };
 let detailTab = 'momen';
 
 async function renderMatch(league, id, seq, opts) {
-  top(`<a class="back" href="#/" data-act="back" aria-label="Kembali">${icon('i-back')}</a><h1 class="sm">${esc(E.COMPS[league] || 'Laga')}</h1>`);
+  top(`<a class="back" href="#/" data-act="back" aria-label="Back">${icon('i-back')}</a><h1 class="sm">${esc(E.COMPS[league] || 'Match')}</h1>`);
   if (!document.querySelector('.md-band')) view(loading());
   let s;
   try { s = await E.summary(league, id, opts.fresh); } catch (e) { if (seq === renderSeq) view(errBox(e.message)); return; }
@@ -311,19 +311,19 @@ async function renderMatch(league, id, seq, opts) {
   const m = s.match;
   const pre = m.state === 'pre';
   const tabs = pre
-    ? [['lineup', 'Line-up'], ['form', 'Form']]
-    : [['momen', 'Momen'], ['lineup', 'Line-up'], ['stat', 'Statistik'], ['form', 'Form']];
+    ? [['lineup', 'Line-ups'], ['form', 'Form']]
+    : [['momen', 'Events'], ['lineup', 'Line-ups'], ['stat', 'Stats'], ['form', 'Form']];
   if (!tabs.some(([k]) => k === detailTab)) detailTab = tabs[0][0];
 
   const goals = s.events.filter(e => /goal|pen|og/.test(e.kind) && e.kind !== 'penmiss' && !e.shootout);
-  const gl = side => goals.filter(g => g.side === side).map(g => `<li>${esc(g.who)} ${esc(g.min)}${g.kind === 'pen' ? ' (p)' : g.kind === 'og' ? ' (bd)' : ''}</li>`).join('');
+  const gl = side => goals.filter(g => g.side === side).map(g => `<li>${esc(g.who)} ${esc(g.min)}${g.kind === 'pen' ? ' (p)' : g.kind === 'og' ? ' (og)' : ''}</li>`).join('');
   const mid = pre
     ? `<div class="ht num">${m.tbd ? '––.––' : time(m.date)}</div><div class="hst">${esc(fDayLong.format(m.date))}</div>`
-    : `<div class="hs num">${scoreText(m)}</div><div class="hst">${m.state === 'in' ? `<span class="live"><b></b>LIVE</span> ${esc(m.clock || m.detail)}` : esc(m.detail === 'FT' ? 'Selesai' : m.detail)}</div>${pensText(m) ? `<div class="hst">${pensText(m)}</div>` : ''}`;
+    : `<div class="hs num">${scoreText(m)}</div><div class="hst">${m.state === 'in' ? `<span class="live"><b></b>LIVE</span> ${esc(m.clock || m.detail)}` : esc(m.detail === 'FT' ? 'Full time' : m.detail)}</div>${pensText(m) ? `<div class="hst">${pensText(m)}</div>` : ''}`;
 
   const info = [s.venue && `${icon('i-pin')}${esc(s.venue)}${s.city ? ', ' + esc(s.city) : ''}`,
     s.referee && `${icon('i-whistle')}${esc(s.referee)}`,
-    s.attendance && `${Number(s.attendance).toLocaleString('id-ID')} penonton`].filter(Boolean);
+    s.attendance && `Attendance ${Number(s.attendance).toLocaleString('en-GB')}`].filter(Boolean);
 
   view(`<section class="md-band">
       <div class="h-row">
@@ -347,12 +347,12 @@ function detailBody(s) {
   const m = s.match;
   if (detailTab === 'momen') {
     const ev = s.events.filter(e => !e.shootout || /goal|pen|penmiss/.test(e.kind));
-    if (!ev.length) return `<div class="empty"><p>Belum ada momen penting.</p></div>`;
+    if (!ev.length) return `<div class="empty"><p>No key events yet.</p></div>`;
     return `<section class="card tl">${ev.map(e => {
       const [ic, label] = KIND[e.kind];
       const mark = e.kind === 'yellow' || e.kind === 'red' ? `<span class="cardk ${e.kind}"></span>` : icon(ic, e.kind === 'penmiss' ? 'miss' : '');
       const sub = e.kind === 'sub'
-        ? `<b>${esc(e.who)}</b><small>masuk, ganti ${esc(e.extra)}</small>`
+        ? `<b>${esc(e.who)}</b><small>on for ${esc(e.extra)}</small>`
         : `<b>${esc(e.who)}</b><small>${label}${e.extra && /goal|pen/.test(e.kind) ? ' · assist ' + esc(e.extra) : ''}</small>`;
       return `<div class="ev ${e.side}${/goal|pen|og/.test(e.kind) && e.kind !== 'penmiss' ? ' is-goal' : ''}">
         <span class="min num">${esc(e.min)}</span><span class="mk">${mark}</span><span class="who">${sub}</span></div>`;
@@ -360,24 +360,24 @@ function detailBody(s) {
   }
   if (detailTab === 'lineup') {
     if (!s.lineups.length || !s.lineups.some(l => l.players.some(p => p.starter))) {
-      return `<div class="empty"><p>Line-up biasanya muncul sekitar 1 jam sebelum kick-off.</p></div>`;
+      return `<div class="empty"><p>Line-ups usually appear about an hour before kick-off.</p></div>`;
     }
     const order = s.lineups.slice().sort((a, b) => (a.side === m.us ? -1 : 1) - (b.side === m.us ? -1 : 1));
     return order.map(l => {
       const t = l.side === 'home' ? m.home : m.away;
       const st = l.players.filter(p => p.starter).sort((a, b) => a.place - b.place);
       const bench = l.players.filter(p => !p.starter).sort((a, b) => (b.inn - a.inn) || (Number(a.num) - Number(b.num)));
-      const row = p => `<div class="lp"><span class="numdot">${esc(p.num)}</span><span class="grow">${esc(p.name)}</span>${p.starter ? `<small class="pos">${esc(p.pos)}</small>` : ''}${p.out ? `<span class="subk out" title="Diganti">${icon('i-sub')}</span>` : p.inn ? `<span class="subk in" title="Masuk">${icon('i-sub')}</span>` : ''}</div>`;
+      const row = p => `<div class="lp"><span class="numdot">${esc(p.num)}</span><span class="grow">${esc(p.name)}</span>${p.starter ? `<small class="pos">${esc(p.pos)}</small>` : ''}${p.out ? `<span class="subk out" title="Subbed off">${icon('i-sub')}</span>` : p.inn ? `<span class="subk in" title="Subbed on">${icon('i-sub')}</span>` : ''}</div>`;
       return `<section class="card">
         <div class="card-h">${crest(t, 24)}<h2>${esc(t.name)}</h2><span class="fm num">${esc(l.formation)}</span></div>
         ${st.map(row).join('')}
-        ${bench.length ? `<h4 class="bench">Cadangan</h4>${bench.map(row).join('')}` : ''}
+        ${bench.length ? `<h4 class="bench">Substitutes</h4>${bench.map(row).join('')}` : ''}
       </section>`;
     }).join('');
   }
   if (detailTab === 'stat') {
     const h = s.stats.home, a = s.stats.away;
-    if (!h || !a) return `<div class="empty"><p>Statistik belum tersedia.</p></div>`;
+    if (!h || !a) return `<div class="empty"><p>Stats not available yet.</p></div>`;
     const rows = STATS.filter(([k]) => h[k] != null && a[k] != null && h[k] !== '' ).map(([k, label, f]) => {
       const hv = Number(h[k]) || 0, av = Number(a[k]) || 0, tot = hv + av || 1;
       const fmt = f || (v => v);
@@ -387,13 +387,13 @@ function detailBody(s) {
     return `<section class="card stats"><div class="st-h">${crest(m.home, 22)}<span></span>${crest(m.away, 22)}</div>${rows}</section>`;
   }
   // form
-  if (!s.form.length) return `<div class="empty"><p>Data form belum tersedia.</p></div>`;
+  if (!s.form.length) return `<div class="empty"><p>Form not available yet.</p></div>`;
   const order = s.form.slice().sort((x, y) => (x.side === m.us ? -1 : 1) - (y.side === m.us ? -1 : 1));
   return order.map(t => {
     const team = t.side === 'home' ? m.home : m.away;
     return `<section class="card">
       <div class="card-h">${crest(team, 24)}<h2>${esc(team.name)}</h2><span class="form">${t.games.slice().reverse().map(g => resChip(g.res)).join('')}</span></div>
-      ${t.games.map(g => `<div class="row"><span class="dt sm"><b class="num">${fDnum.format(g.date)}</b><small>${esc(new Intl.DateTimeFormat('id-ID', { month: 'short' }).format(g.date))}</small></span>
+      ${t.games.map(g => `<div class="row"><span class="dt sm"><b class="num">${fDnum.format(g.date)}</b><small>${esc(new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(g.date))}</small></span>
         <span class="grow"><b>${g.at === '@' ? '@ ' : 'vs '}${esc(g.opp)}</b><small>${esc(g.comp)}</small></span><span class="sc num">${esc(g.score)}</span>${resChip(g.res)}</div>`).join('')}
     </section>`;
   }).join('');
@@ -422,7 +422,7 @@ document.addEventListener('click', e => {
   }
   if (act === 'back') { e.preventDefault(); if (history.length > 1 && sessionStorage.getItem('md_nav')) history.back(); else location.replace('#/'); }
   if (act === 'copy-ics') {
-    navigator.clipboard.writeText(ICS_URL).then(() => snack('Link kalender disalin'), () => snack(ICS_URL));
+    navigator.clipboard.writeText(ICS_URL).then(() => snack('Calendar link copied'), () => snack(ICS_URL));
   }
 });
 
@@ -447,7 +447,7 @@ if ('serviceWorker' in navigator) {
     reg.addEventListener('updatefound', () => {
       const w = reg.installing;
       w && w.addEventListener('statechange', () => {
-        if (w.state === 'installed' && navigator.serviceWorker.controller) snack('Versi baru siap, buka ulang aplikasi');
+        if (w.state === 'installed' && navigator.serviceWorker.controller) snack('New version ready, reopen the app');
       });
     });
   }).catch(() => {});

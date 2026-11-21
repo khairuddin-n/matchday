@@ -11,10 +11,10 @@ from datetime import datetime, timedelta, timezone
 TEAM = "83"
 COMPS = {
     "esp.1": "La Liga",
-    "uefa.champions": "Liga Champions",
+    "uefa.champions": "Champions League",
     "esp.copa_del_rey": "Copa del Rey",
     "esp.super_cup": "Supercopa",
-    "club.friendly": "Uji coba",
+    "club.friendly": "Friendly",
 }
 BASE = "https://site.web.api.espn.com/apis/site/v2/sports/soccer"
 WIB = timezone(timedelta(hours=7))
@@ -66,7 +66,7 @@ def main(out_path):
 
     now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     lines = [
-        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//matchday//barca//ID", "CALSCALE:GREGORIAN",
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//matchday//barca//EN", "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH", "X-WR-CALNAME:Barça · Matchday", "X-WR-TIMEZONE:Asia/Jakarta",
         "REFRESH-INTERVAL;VALUE=DURATION:PT6H", "X-PUBLISHED-TTL:PT6H",
     ]
@@ -88,7 +88,7 @@ def main(out_path):
         if tbd:
             d0 = start.astimezone(WIB).date()
             lines += [f"DTSTART;VALUE=DATE:{d0:%Y%m%d}", f"DTEND;VALUE=DATE:{d0 + timedelta(days=1):%Y%m%d}"]
-            title += " (jam belum pasti)"
+            title += " (time TBC)"
         else:
             lines += [f"DTSTART:{start:%Y%m%dT%H%M%SZ}", f"DTEND:{start + timedelta(minutes=115):%Y%m%dT%H%M%SZ}"]
         lines.append(fold(f"SUMMARY:⚽ {esc(title)}"))
@@ -96,7 +96,7 @@ def main(out_path):
         if venue:
             lines.append(fold(f"LOCATION:{esc(venue)}"))
         if not tbd and not st.get("completed"):
-            lines += ["BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Kick-off 1 jam lagi", "TRIGGER:-PT1H", "END:VALARM"]
+            lines += ["BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:Kick-off in 1 hour", "TRIGGER:-PT1H", "END:VALARM"]
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
     with open(out_path, "w", encoding="utf-8", newline="") as f:

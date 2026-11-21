@@ -10,10 +10,10 @@ const BASE2 = '/apis/v2/sports/soccer';
 export const TEAM = '83';               // FC Barcelona di ESPN
 export const COMPS = {
   'esp.1': 'La Liga',
-  'uefa.champions': 'Liga Champions',
+  'uefa.champions': 'Champions League',
   'esp.copa_del_rey': 'Copa del Rey',
   'esp.super_cup': 'Supercopa',
-  'club.friendly': 'Uji coba'
+  'club.friendly': 'Friendly'
 };
 
 // ---------- fetch + cache lokal ----------
@@ -116,7 +116,7 @@ export async function matches(fresh) {
       if (!isNaN(m.date)) all.set(m.id, m);
     });
   });
-  if (!ok) throw new Error('Data tidak bisa diambil');
+  if (!ok) throw new Error('Could not load data');
   return [...all.values()].sort((a, b) => a.date - b.date);
 }
 
